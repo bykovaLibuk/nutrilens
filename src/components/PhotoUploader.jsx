@@ -46,7 +46,7 @@ export default function PhotoUploader({ apiKey, onFoodAnalyzed }) {
       setEditMode(true);
       
     } catch (err) {
-      setError("Ошибка при анализе фото. Проверьте ключ API и подключение.");
+      setError("Ошибка при анализе фото: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -195,6 +195,19 @@ export default function PhotoUploader({ apiKey, onFoodAnalyzed }) {
           Галерея
         </button>
       </div>
+
+      <button 
+        className="btn btn-glass" 
+        style={{ padding: '16px', display: 'flex', justifyContent: 'center', gap: '8px' }}
+        onClick={() => {
+          setEditData({ name: '', calories: 0, protein: 0, fat: 0, carbs: 0 });
+          setEditMode(true);
+          setError(null);
+        }}
+      >
+        <Edit3 size={20} />
+        Ввести КБЖУ вручную
+      </button>
 
       {error && (
         <div style={{ padding: '12px', background: 'rgba(244, 63, 94, 0.2)', color: 'var(--accent)', borderRadius: '8px', fontSize: '0.9rem', textAlign: 'center' }}>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
 
 const CircularProgress = ({ value, max, color, label, unit }) => {
   const radius = 30; // Уменьшено с 36 для маленьких экранов
@@ -48,7 +48,7 @@ const CircularProgress = ({ value, max, color, label, unit }) => {
   );
 };
 
-export default function Dashboard({ history, clearHistory, goals, onSaveToFav }) {
+export default function Dashboard({ history, clearHistory, goals, onSaveToFav, currentDate, setCurrentDate }) {
   const totals = history.reduce((acc, item) => ({
     calories: acc.calories + (item.calories || 0),
     protein: acc.protein + (item.protein || 0),
@@ -59,6 +59,33 @@ export default function Dashboard({ history, clearHistory, goals, onSaveToFav })
   return (
     <div className="animate-slide-up" style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
       
+      {/* Date Switcher */}
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px' }}>
+        <button 
+          onClick={() => {
+            const d = new Date(currentDate);
+            d.setDate(d.getDate() - 1);
+            setCurrentDate(d.toDateString());
+          }}
+          className="btn-glass" style={{ padding: '8px', borderRadius: '50%' }}
+        ><ChevronLeft size={20} /></button>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 600 }}>
+          <Calendar size={18} color="var(--primary)" />
+          {currentDate === new Date().toDateString() ? 'Сегодня' : new Date(currentDate).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+        </div>
+
+        <button 
+          onClick={() => {
+            const d = new Date(currentDate);
+            d.setDate(d.getDate() + 1);
+            if (d <= new Date()) setCurrentDate(d.toDateString());
+          }}
+          className="btn-glass" style={{ padding: '8px', borderRadius: '50%', opacity: currentDate === new Date().toDateString() ? 0.3 : 1 }}
+          disabled={currentDate === new Date().toDateString()}
+        ><ChevronRight size={20} /></button>
+      </div>
+
       {/* Main Calorie Card */}
       <div className="glass-panel" style={{ textAlign: 'center', padding: '30px 20px' }}>
         <h2 style={{ fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '10px' }}>Калории за сегодня</h2>
@@ -85,7 +112,7 @@ export default function Dashboard({ history, clearHistory, goals, onSaveToFav })
       {/* History List */}
       <div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-          <h3>Съедено сегодня</h3>
+          <h3>Съедено в этот день</h3>
           {history.length > 0 && (
             <button 
               onClick={clearHistory}

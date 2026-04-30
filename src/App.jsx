@@ -6,14 +6,16 @@ import PhotoUploader from './components/PhotoUploader';
 import RecipeCalculator from './components/RecipeCalculator';
 import RecipeBuilder from './components/RecipeBuilder';
 import DatabaseTab from './components/DatabaseTab';
-import { CheckCircle2 } from 'lucide-react';
+import ProgressTab from './components/ProgressTab';
+import { CheckCircle2, Camera, Database } from 'lucide-react';
 
 function App() {
-  const [view, setView] = useState('dashboard'); // 'dashboard', 'settings', 'camera'
+  const [view, setView] = useState('dashboard'); // 'dashboard', 'settings', 'progress', etc.
   const [apiKey, setApiKey] = useState('');
   const [history, setHistory] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date().toDateString());
   
   const DEFAULT_GOALS = { calories: 2000, protein: 150, carbs: 200, fat: 65 };
   const [goals, setGoals] = useState(DEFAULT_GOALS);
@@ -57,13 +59,16 @@ function App() {
 
   const handleFoodAnalyzed = (result) => {
     // SECURITY: Validate that the returned data has the required numbers and is >= 0
+    // Use targetDate if provided (for adding to past days), otherwise use now
+    const targetDate = result.targetDate || new Date().toISOString();
+
     const sanitizedResult = {
       name: String(result.name || 'Неизвестное блюдо').substring(0, 50),
       calories: Math.max(0, Number(result.calories) || 0),
       protein: Math.max(0, Number(result.protein) || 0),
       carbs: Math.max(0, Number(result.carbs) || 0),
       fat: Math.max(0, Number(result.fat) || 0),
-      timestamp: new Date().toISOString()
+      timestamp: targetDate
     };
 
     const updatedHistory = [sanitizedResult, ...history];
@@ -104,7 +109,7 @@ function App() {
 
   const todayHistory = history.filter(item => {
     if (!item.timestamp) return true; // fallback
-    return new Date(item.timestamp).toDateString() === new Date().toDateString();
+    return new Date(item.timestamp).toDateString() === currentDate;
   });
 
   return (
@@ -135,17 +140,42 @@ function App() {
               history={todayHistory} 
               clearHistory={clearHistory} 
               goals={goals} 
-              favorites={favorites}
-              onAddFromFav={handleFoodAnalyzed}
               onSaveToFav={handleAddFavorite}
-              onDeleteFav={handleDeleteFavorite}
-              setView={setView}
-              onFoodAnalyzed={handleFoodAnalyzed}
+              currentDate={currentDate}
+              setCurrentDate={setCurrentDate}
             />
-            {apiKey && (
-              <PhotoUploader apiKey={apiKey} onFoodAnalyzed={handleFoodAnalyzed} />
-            )}
+            {/* Huge Camera Button at the bottom of Dashboard */}
+            <div style={{ padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <button 
+                onClick={() => setView('camera')}
+                className="btn btn-primary" 
+                style={{ 
+                  width: '100%', padding: '16px', fontSize: '1.1rem', 
+                  display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px',
+                  borderRadius: '16px',
+                  boxShadow: '0 8px 32px rgba(16, 185, 129, 0.3)'
+                }}
+              >
+                <Camera size={24} /> Сфотографировать еду
+              </button>
+              
+              <button 
+                onClick={() => setView('database')}
+                className="btn btn-glass" 
+                style={{ 
+                  width: '100%', padding: '16px', fontSize: '1.1rem', 
+                  display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px',
+                  borderRadius: '16px'
+                }}
+              >
+                <Database size={24} color="var(--primary)" /> Выбрать блюдо из Базы
+              </button>
+            </div>
           </>
+        )}
+
+        {view === 'camera' && (
+          <PhotoUploader apiKey={apiKey} onFoodAnalyzed={handleFoodAnalyzed} />
         )}
 
         {view === 'builder' && (
@@ -164,6 +194,10 @@ function App() {
             onDeleteFav={handleDeleteFavorite} 
             setView={setView} 
           />
+        )}
+
+        {view === 'progress' && (
+          <ProgressTab history={history} goals={goals} />
         )}
 
         {view === 'recipe' && (

@@ -9,6 +9,7 @@ export default function DatabaseTab({ favorites, onSaveToFav, onAddFromFav, onDe
   // Portion prompt state
   const [activeItem, setActiveItem] = useState(null);
   const [portion, setPortion] = useState(100);
+  const [targetDate, setTargetDate] = useState(new Date().toISOString().split('T')[0]);
 
   const filteredFavorites = favorites.filter(fav => 
     fav.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -39,7 +40,8 @@ export default function DatabaseTab({ favorites, onSaveToFav, onAddFromFav, onDe
         calories: Math.round(activeItem.calories * multiplier),
         protein: Math.round(activeItem.protein * multiplier),
         fat: Math.round(activeItem.fat * multiplier),
-        carbs: Math.round(activeItem.carbs * multiplier)
+        carbs: Math.round(activeItem.carbs * multiplier),
+        targetDate: new Date(targetDate).toISOString()
       });
       setActiveItem(null);
       setPortion(100);
@@ -59,8 +61,17 @@ export default function DatabaseTab({ favorites, onSaveToFav, onAddFromFav, onDe
           placeholder="Вес порции в граммах" 
           value={portion}
           onChange={(e) => setPortion(e.target.value)}
-          style={inputStyle}
+          style={{...inputStyle, marginBottom: '10px'}}
         />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+          <label style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>Записать на дату:</label>
+          <input 
+            type="date" 
+            value={targetDate} 
+            onChange={e => setTargetDate(e.target.value)} 
+            style={{...inputStyle, flex: 1, padding: '8px'}} 
+          />
+        </div>
         <div style={{ textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '12px' }}>
           В дневник запишется: <strong style={{ color: 'var(--primary)' }}>{Math.round(activeItem.calories * (portion/100))} ккал</strong>
         </div>

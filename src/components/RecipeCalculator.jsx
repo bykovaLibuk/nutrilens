@@ -27,7 +27,7 @@ export default function RecipeCalculator({ apiKey, onFoodAnalyzed }) {
       const data = await analyzeRecipeOrLabel(apiKey, 'text_recipe', recipeText);
       setResult(data);
     } catch(err) {
-      setError("Ошибка анализа рецепта");
+      setError("Ошибка анализа: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -47,7 +47,7 @@ export default function RecipeCalculator({ apiKey, onFoodAnalyzed }) {
       const data = await analyzeRecipeOrLabel(apiKey, 'image_label', base64, file.type);
       setResult(data);
     } catch(err) {
-      setError("Ошибка распознавания этикетки");
+      setError("Ошибка распознавания: " + err.message);
     } finally {
       setLoading(false);
     }

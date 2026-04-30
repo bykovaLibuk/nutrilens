@@ -1,5 +1,5 @@
 import React from 'react';
-import { Settings, Camera, PieChart, BookOpen, Database } from 'lucide-react';
+import { Settings, TrendingUp, PieChart, BookOpen, Database } from 'lucide-react';
 
 export default function Header({ currentView, setView }) {
   return (
@@ -21,7 +21,7 @@ export default function Header({ currentView, setView }) {
           borderRadius: '8px',
           display: 'flex', alignItems: 'center', justifyContent: 'center'
         }}>
-          <Camera size={18} color="#022c22" />
+          <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#022c22' }}>N</span>
         </div>
         <h1 style={{ fontSize: '1.25rem', margin: 0 }} className="text-gradient">NutriLens</h1>
       </div>
@@ -47,6 +47,13 @@ export default function Header({ currentView, setView }) {
           style={{ padding: '8px', borderRadius: '50%', color: currentView === 'recipe' ? 'var(--primary)' : 'var(--text-muted)' }}
         >
           <BookOpen size={20} />
+        </button>
+        <button 
+          onClick={() => setView('progress')}
+          className="btn-glass"
+          style={{ padding: '8px', borderRadius: '50%', color: currentView === 'progress' ? 'var(--primary)' : 'var(--text-muted)' }}
+        >
+          <TrendingUp size={20} />
         </button>
         <button 
           onClick={() => setView('settings')}
