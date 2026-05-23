@@ -149,7 +149,7 @@ export default function RecipeCalculator({ apiKey, onFoodAnalyzed }) {
           <button className="btn btn-glass" onClick={handleManualEntry} style={{ padding: '16px' }}>
             <Pencil size={24} /> Ручной ввод (БЖУ на 100г)
           </button>
-          <input type="file" accept="image/*" capture="environment" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
+          <input type="file" accept="image/*" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
         </div>
       )}
 

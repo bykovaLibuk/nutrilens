@@ -14,7 +14,8 @@ export default function PhotoUploader({ apiKey, onFoodAnalyzed }) {
   const [portion, setPortion] = useState(1); // 1 = 100%, 0.5 = 50%
   
   
-  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
 
   const handleFileChange = async (e) => {
     const file = e.target.files[0];
@@ -171,7 +172,14 @@ export default function PhotoUploader({ apiKey, onFoodAnalyzed }) {
         type="file" 
         accept="image/*" 
         capture="environment" 
-        ref={fileInputRef}
+        ref={cameraInputRef}
+        style={{ display: 'none' }}
+        onChange={handleFileChange}
+      />
+      <input 
+        type="file" 
+        accept="image/*" 
+        ref={galleryInputRef}
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />
@@ -180,7 +188,7 @@ export default function PhotoUploader({ apiKey, onFoodAnalyzed }) {
         <button 
           className="btn btn-primary" 
           style={{ flexDirection: 'column', padding: '20px 12px', gap: '8px' }}
-          onClick={() => fileInputRef.current.click()}
+          onClick={() => cameraInputRef.current.click()}
         >
           <Camera size={28} />
           Камера
@@ -189,7 +197,7 @@ export default function PhotoUploader({ apiKey, onFoodAnalyzed }) {
         <button 
           className="btn btn-glass" 
           style={{ flexDirection: 'column', padding: '20px 12px', gap: '8px' }}
-          onClick={() => fileInputRef.current.click()}
+          onClick={() => galleryInputRef.current.click()}
         >
           <Upload size={28} />
           Галерея
