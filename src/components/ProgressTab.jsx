@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, Ruler, Clock, Bluetooth, Save, Sparkles, User, RefreshCw } from 'lucide-react';
+import { analyzeProgressData } from '../services/gemini';
 
-export default function ProgressTab({ history, goals }) {
+export default function ProgressTab({ history, goals, apiKey }) {
   const [measurements, setMeasurements] = useState([]);
   const [formData, setFormData] = useState({ weight: '', chest: '', waist: '', hips: '', arms: '' });
   const [scaleData, setScaleData] = useState('');
@@ -14,6 +15,11 @@ export default function ProgressTab({ history, goals }) {
     biaAlgorithm: 'standard',
     fatOffset: 0
   });
+  
+  // AI Progress Analyst State
+  const [aiAnalysis, setAiAnalysis] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState(null);
   
   // Yunmai Smart Scale State
   const [scaleWeight, setScaleWeight] = useState(null);
@@ -43,6 +49,15 @@ export default function ProgressTab({ history, goals }) {
         });
       } catch (e) {
         console.error(e);
+      }
+    }
+
+    const savedAnalysis = localStorage.getItem('nutrilens_ai_analysis');
+    if (savedAnalysis) {
+      try {
+        setAiAnalysis(JSON.parse(savedAnalysis));
+      } catch (e) {
+        console.error("Failed to parse AI analysis", e);
       }
     }
   }, []);
@@ -270,6 +285,33 @@ export default function ProgressTab({ history, goals }) {
     setBodyComp(null);
     setScaleData('');
     alert(`Показатели сохранены в историю!`);
+  };
+
+  const handleAIAnalysis = async () => {
+    if (!apiKey) {
+      setAiError("Пожалуйста, укажите API ключ в настройках для запуска ИИ-анализа.");
+      return;
+    }
+    if (measurements.length === 0 && history.length === 0) {
+      setAiError("Недостаточно данных для анализа. Добавьте хотя бы одну запись веса или съеденного блюда.");
+      return;
+    }
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const result = await analyzeProgressData(apiKey, profile, measurements, history);
+      const analysisData = {
+        ...result,
+        timestamp: new Date().toISOString()
+      };
+      setAiAnalysis(analysisData);
+      localStorage.setItem('nutrilens_ai_analysis', JSON.stringify(analysisData));
+    } catch (err) {
+      console.error(err);
+      setAiError(err.message || "Не удалось получить анализ.");
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const handleInjectPacket = () => {
@@ -514,6 +556,169 @@ export default function ProgressTab({ history, goals }) {
           </div>
         ) : (
           weightChartSvg
+        )}
+      </div>
+
+      {/* AI Progress Analyst */}
+      <div className="glass-panel animate-slide-up" style={{ 
+        padding: '20px', 
+        background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.06) 0%, rgba(99, 102, 241, 0.06) 100%)',
+        border: '1px solid rgba(168, 85, 247, 0.2)',
+        boxShadow: '0 8px 32px rgba(168, 85, 247, 0.05)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Sparkles size={20} color="#c084fc" />
+            <h3 style={{ fontSize: '1.1rem', margin: 0, fontWeight: 600, color: '#e9d5ff' }}>Персональный ИИ-Аналитик</h3>
+          </div>
+          {aiAnalysis && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              Обновлено: {new Date(aiAnalysis.timestamp).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+        </div>
+
+        {aiError && (
+          <div style={{ 
+            padding: '12px', 
+            background: 'rgba(244, 63, 94, 0.12)', 
+            border: '1px solid rgba(244, 63, 94, 0.25)', 
+            borderRadius: '10px', 
+            color: '#fca5a5', 
+            fontSize: '0.85rem' 
+          }}>
+            {aiError}
+          </div>
+        )}
+
+        {aiLoading ? (
+          <div style={{ padding: '30px 10px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+            <RefreshCw size={32} className="animate-spin" color="#c084fc" />
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', textAlign: 'center' }}>
+              ИИ анализирует замеры, состав тела и рацион питания за последние 30 дней...
+            </span>
+          </div>
+        ) : aiAnalysis ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {/* Status overview */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '12px', 
+              padding: '12px', 
+              background: 'rgba(255, 255, 255, 0.02)', 
+              borderRadius: '10px', 
+              border: '1px solid rgba(255, 255, 255, 0.05)' 
+            }}>
+              <span style={{ fontSize: '2.2rem', lineHeight: 1 }}>{aiAnalysis.statusEmoji || '🎯'}</span>
+              <div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'white' }}>{aiAnalysis.statusTitle}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Анализ вашего прогресса</div>
+              </div>
+            </div>
+
+            {/* Summary text */}
+            <p style={{ fontSize: '0.9rem', color: 'rgba(255, 255, 255, 0.9)', margin: 0, lineHeight: '1.5' }}>
+              {aiAnalysis.summary}
+            </p>
+
+            {/* Detailed sections */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '16px' }}>
+              <div>
+                <h4 style={{ fontSize: '0.85rem', color: 'var(--secondary)', marginBottom: '4px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  ⚖️ Динамика тела
+                </h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, lineHeight: '1.4' }}>
+                  {aiAnalysis.compositionAnalysis}
+                </p>
+              </div>
+
+              <div>
+                <h4 style={{ fontSize: '0.85rem', color: 'var(--primary)', marginBottom: '4px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  🍎 Анализ питания
+                </h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0, lineHeight: '1.4' }}>
+                  {aiAnalysis.nutritionAnalysis}
+                </p>
+              </div>
+            </div>
+
+            {/* Warnings if any */}
+            {aiAnalysis.warnings && aiAnalysis.warnings.filter(w => w.trim() !== "").length > 0 && (
+              <div style={{ 
+                padding: '12px', 
+                background: 'rgba(245, 158, 11, 0.08)', 
+                border: '1px solid rgba(245, 158, 11, 0.2)', 
+                borderRadius: '10px', 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '6px' 
+              }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f59e0b' }}>⚠️ Обратите внимание:</span>
+                <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '0.8rem', color: '#fbbf24', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  {aiAnalysis.warnings.filter(w => w.trim() !== "").map((w, idx) => (
+                    <li key={idx}>{w}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Actions / Recommendations */}
+            {aiAnalysis.recommendations && aiAnalysis.recommendations.length > 0 && (
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '16px' }}>
+                <h4 style={{ fontSize: '0.85rem', color: '#c084fc', marginBottom: '8px', fontWeight: 600 }}>📋 Шаги к вашей цели:</h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {aiAnalysis.recommendations.map((rec, idx) => (
+                    <div key={idx} style={{ 
+                      display: 'flex', 
+                      gap: '10px', 
+                      padding: '10px 12px', 
+                      background: 'rgba(168, 85, 247, 0.03)', 
+                      borderRadius: '8px', 
+                      border: '1px solid rgba(168, 85, 247, 0.06)',
+                      fontSize: '0.85rem',
+                      lineHeight: '1.4'
+                    }}>
+                      <span style={{ color: '#c084fc', fontWeight: 'bold' }}>{idx + 1}.</span>
+                      <span style={{ color: 'var(--text-muted)' }}>{rec}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <button onClick={handleAIAnalysis} className="btn btn-glass" style={{ width: '100%', fontSize: '0.85rem', marginTop: '8px', borderColor: 'rgba(168, 85, 247, 0.25)', color: '#c084fc' }}>
+              <RefreshCw size={14} style={{ marginRight: '6px' }} /> Обновить ИИ-анализ
+            </button>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '10px 0 5px' }}>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px', lineHeight: '1.4' }}>
+              Получите профессиональный отчет на основе динамики вашего веса, показателей биоимпеданса и дневника питания.
+            </p>
+            <button 
+              onClick={handleAIAnalysis} 
+              className="btn btn-primary" 
+              style={{ 
+                background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)', 
+                border: 'none', 
+                color: 'white', 
+                padding: '12px 24px', 
+                fontSize: '0.9rem', 
+                boxShadow: '0 4px 16px rgba(168, 85, 247, 0.2)',
+                borderRadius: '12px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer'
+              }}
+            >
+              <Sparkles size={16} /> Проанализировать прогресс с ИИ
+            </button>
+          </div>
         )}
       </div>
 

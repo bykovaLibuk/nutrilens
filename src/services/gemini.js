@@ -161,3 +161,96 @@ export async function analyzeRecipeOrLabel(apiKey, mode, data, mimeType = "image
     throw new Error(`Ошибка: ${lastError.message}. Похоже, ваш ключ не имеет доступа к моделям или вы используете старый проект Google Cloud.`);
   }
 }
+
+export async function analyzeProgressData(apiKey, profile, measurements, foodHistory) {
+  const genAI = new GoogleGenerativeAI(apiKey);
+  
+  // Format data compactly to stay within tokens and optimize performance
+  const cleanProfile = {
+    height: profile.height || 175,
+    age: profile.age || 25,
+    gender: profile.gender === 0 ? "Женский" : "Мужской",
+    isAthlete: profile.isAthlete ? "Спортсмен" : "Обычный"
+  };
+  
+  const cleanMeasurements = (measurements || []).map(m => ({
+    date: m.date ? new Date(m.date).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : "",
+    weight: m.weight ? parseFloat(m.weight) : null,
+    fat: m.fat ? parseFloat(m.fat) : null,
+    muscle: m.muscle ? parseFloat(m.muscle) : null,
+    waist: m.waist ? parseFloat(m.waist) : null
+  })).reverse().slice(-15); // Last 15 measurements in chronological order
+  
+  const cleanHistory = (foodHistory || []).map(f => ({
+    date: f.timestamp ? new Date(f.timestamp).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' }) : "",
+    name: f.name,
+    calories: f.calories,
+    protein: f.protein,
+    fat: f.fat,
+    carbs: f.carbs
+  })).reverse().slice(-40); // Last 40 food items in chronological order
+  
+  const prompt = `
+  Ты - Персональный ИИ-Аналитик Здоровья NutriLens. Твоя задача - проанализировать данные прогресса пользователя и составить профессиональный отчет на русском языке.
+  
+  Физический профиль пользователя:
+  ${JSON.stringify(cleanProfile, null, 2)}
+  
+  История взвешиваний и состава тела (в хронологическом порядке):
+  ${JSON.stringify(cleanMeasurements, null, 2)}
+  
+  История питания и КБЖУ (в хронологическом порядке):
+  ${JSON.stringify(cleanHistory, null, 2)}
+  
+  Проведи анализ по следующим направлениям:
+  1. Динамика веса и состава тела: снижается/растет ли вес, что происходит с жировой массой и мышечной массой?
+  2. Качество питания и баланс КБЖУ: хватает ли белков, есть ли резкие скачки калорийности?
+  3. Персональные практические рекомендации: корректировка калорийности, гидратации, активности.
+  4. Предупреждения: слишком быстрый сброс веса, экстремально низкая калорийность, сильные перекосы в макросах.
+  
+  Обязательно верни ТОЛЬКО валидный JSON-объект (без разметки markdown, без бэктиков \`\`\`json, без пояснительного текста) со следующей структурой:
+  {
+    "statusEmoji": "один смайлик, наиболее подходящий текущему состоянию (например, 🎯, 💪, ⚠️, ⚖️)",
+    "statusTitle": "Короткий заголовок статуса на русском (например, 'Отличная динамика', 'Нужно стабилизировать калории')",
+    "summary": "Общее резюме прогресса пользователя (2-3 предложения на русском)",
+    "compositionAnalysis": "Анализ состава тела и изменений веса (2-3 предложения на русском)",
+    "nutritionAnalysis": "Детальный анализ рациона и баланса БЖУ (2-3 предложения на русском)",
+    "recommendations": ["Рекомендация 1 на русском", "Рекомендация 2 на русском", "Рекомендация 3 на русском"],
+    "warnings": ["Предупреждение 1 на русском (если применимо, иначе оставь массив пустым)", "Предупреждение 2 на русском"]
+  }
+  `;
+  
+  let modelsToTry = ["gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-pro"];
+  
+  let lastError;
+  for (const modelName of modelsToTry) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent([prompt]);
+      let text = (await result.response).text();
+      text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(text);
+    } catch (error) {
+      console.warn(`Model ${modelName} failed:`, error.message);
+      lastError = error;
+      if (error.message.includes("API key not valid")) throw error;
+    }
+  }
+
+  // Fallback to dynamic models list
+  const dynamicModels = await getAvailableModels(apiKey);
+  for (const modelName of dynamicModels) {
+    try {
+      const model = genAI.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent([prompt]);
+      let text = (await result.response).text();
+      text = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(text);
+    } catch (error) {
+      console.warn(`Dynamic model ${modelName} failed:`, error.message);
+      lastError = error;
+    }
+  }
+
+  throw new Error(lastError ? lastError.message : "Не удалось выполнить анализ данных.");
+}

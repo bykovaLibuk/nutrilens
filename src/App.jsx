@@ -204,7 +204,7 @@ function App() {
         )}
 
         {view === 'progress' && (
-          <ProgressTab history={history} goals={goals} />
+          <ProgressTab history={history} goals={goals} apiKey={apiKey} />
         )}
 
         {view === 'recipe' && (
