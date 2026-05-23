@@ -4,6 +4,8 @@ import { analyzeProgressData } from '../services/gemini';
 
 export default function ProgressTab({ history, goals, apiKey }) {
   const [measurements, setMeasurements] = useState([]);
+  const deviceRef = React.useRef(null);
+  const [hasPairedDevice, setHasPairedDevice] = useState(false);
   const [formData, setFormData] = useState({ weight: '', chest: '', waist: '', hips: '', arms: '' });
   const [scaleData, setScaleData] = useState('');
   const [isConnected, setIsConnected] = useState(false);
@@ -59,6 +61,19 @@ export default function ProgressTab({ history, goals, apiKey }) {
       } catch (e) {
         console.error("Failed to parse AI analysis", e);
       }
+    }
+
+    // Check for previously paired Bluetooth scale
+    if (navigator.bluetooth && navigator.bluetooth.getDevices) {
+      navigator.bluetooth.getDevices()
+        .then(devices => {
+          const yunmai = devices.find(d => d.name && d.name.toUpperCase().startsWith('YUNMAI'));
+          if (yunmai) {
+            deviceRef.current = yunmai;
+            setHasPairedDevice(true);
+          }
+        })
+        .catch(err => console.warn("getDevices failed", err));
     }
   }, []);
 
@@ -338,6 +353,41 @@ export default function ProgressTab({ history, goals, apiKey }) {
     }
   };
 
+  const setupDeviceNotifications = async (device) => {
+    const server = await device.gatt.connect();
+    setIsConnected(true);
+    
+    const onDisconnect = () => {
+      setIsConnected(false);
+    };
+
+    // Remove any previous listener first
+    device.removeEventListener('gattserverdisconnected', onDisconnect);
+    device.addEventListener('gattserverdisconnected', onDisconnect);
+
+    const service = await server.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb');
+    const characteristic = await service.getCharacteristic('0000ffe4-0000-1000-8000-00805f9b34fb');
+    
+    await characteristic.startNotifications();
+    characteristic.addEventListener('characteristicvaluechanged', (event) => {
+      const value = event.target.value;
+      let hexArray = [];
+      const bytes = [];
+      for (let i = 0; i < value.byteLength; i++) {
+        const byteVal = value.getUint8(i);
+        bytes.push(byteVal);
+        hexArray.push(byteVal.toString(16).padStart(2, '0').toUpperCase());
+      }
+      const hexString = hexArray.join(' ');
+      setScaleData(hexString);
+
+      const parsed = parseYunmaiPacket(bytes);
+      if (parsed) {
+        handleScaleDataReceived(parsed);
+      }
+    });
+  };
+
   const handleConnectScale = async () => {
     try {
       if (!navigator.bluetooth) {
@@ -350,42 +400,26 @@ export default function ProgressTab({ history, goals, apiKey }) {
         optionalServices: ['0000ffe0-0000-1000-8000-00805f9b34fb', 'weight_scale']
       });
 
-      const server = await device.gatt.connect();
-      setIsConnected(true);
-      
-      try {
-        const service = await server.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb');
-        const characteristic = await service.getCharacteristic('0000ffe4-0000-1000-8000-00805f9b34fb');
-        
-        await characteristic.startNotifications();
-        characteristic.addEventListener('characteristicvaluechanged', (event) => {
-          const value = event.target.value;
-          let hexArray = [];
-          const bytes = [];
-          for (let i = 0; i < value.byteLength; i++) {
-            const byteVal = value.getUint8(i);
-            bytes.push(byteVal);
-            hexArray.push(byteVal.toString(16).padStart(2, '0').toUpperCase());
-          }
-          const hexString = hexArray.join(' ');
-          setScaleData(hexString);
-
-          const parsed = parseYunmaiPacket(bytes);
-          if (parsed) {
-            handleScaleDataReceived(parsed);
-          }
-        });
-        
-        alert(`✅ Подключено! Встаньте на весы. Смотрите поток данных в реальном времени.`);
-      } catch (innerErr) {
-        alert(`Сопряжено, но чтение данных не удалось: ${innerErr.message}`);
-      }
-      
+      deviceRef.current = device;
+      setHasPairedDevice(true);
+      await setupDeviceNotifications(device);
+      alert(`✅ Подключено! Встаньте на весы. Смотрите поток данных в реальном времени.`);
     } catch (err) {
       console.error(err);
       if (err.name !== 'NotFoundError') {
         alert("Ошибка подключения: " + err.message);
       }
+    }
+  };
+
+  const handleReconnectScale = async () => {
+    if (!deviceRef.current) return;
+    try {
+      await setupDeviceNotifications(deviceRef.current);
+      alert(`✅ Переподключено! Встаньте на весы.`);
+    } catch (err) {
+      console.error(err);
+      alert("Не удалось переподключить весы. Встаньте на весы (чтобы они проснулись) и попробуйте снова: " + err.message);
     }
   };
 
@@ -824,19 +858,46 @@ export default function ProgressTab({ history, goals, apiKey }) {
           </button>
         </div>
 
-        <button 
-          onClick={handleConnectScale} 
-          className="btn btn-glass" 
-          style={{ width: '100%', marginBottom: isConnected ? '8px' : '16px', padding: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', color: isConnected ? '#10b981' : '#3b82f6', border: `1px solid ${isConnected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(59, 130, 246, 0.3)'}` }}
-        >
-          <Bluetooth size={18} /> {isConnected ? 'Весы подключены (Слушаем...)' : 'Подключить весы Yunmai BLE'}
-        </button>
-
-        {isConnected && (
-          <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', fontFamily: 'monospace', fontSize: '0.8rem', color: '#10b981', wordBreak: 'break-all' }}>
-            <strong>Сырые данные (Hex):</strong><br/>
-            {scaleData || 'Встаньте на весы... ждем данные...'}
+        {isConnected ? (
+          <>
+            <button 
+              disabled
+              className="btn btn-glass" 
+              style={{ width: '100%', marginBottom: '8px', padding: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', color: '#10b981', border: '1px solid rgba(16, 185, 129, 0.3)', cursor: 'default' }}
+            >
+              <Bluetooth size={18} className="animate-pulse" /> Весы подключены (Слушаем...)
+            </button>
+            <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(0,0,0,0.3)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', fontFamily: 'monospace', fontSize: '0.8rem', color: '#10b981', wordBreak: 'break-all' }}>
+              <strong>Сырые данные (Hex):</strong><br/>
+              {scaleData || 'Встаньте на весы... ждем данные...'}
+            </div>
+          </>
+        ) : hasPairedDevice ? (
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <button 
+              onClick={handleReconnectScale} 
+              className="btn btn-primary" 
+              style={{ flex: 1, padding: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
+            >
+              <RefreshCw size={18} /> Подключить заново
+            </button>
+            <button 
+              onClick={handleConnectScale} 
+              className="btn btn-glass" 
+              style={{ padding: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)' }}
+              title="Выбрать другое устройство"
+            >
+              Сопряжение 🔌
+            </button>
           </div>
+        ) : (
+          <button 
+            onClick={handleConnectScale} 
+            className="btn btn-glass" 
+            style={{ width: '100%', marginBottom: '16px', padding: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', color: '#3b82f6', border: '1px solid rgba(59, 130, 246, 0.3)' }}
+          >
+            <Bluetooth size={18} /> Подключить весы Yunmai BLE
+          </button>
         )}
 
         {/* Developer simulation panel */}
