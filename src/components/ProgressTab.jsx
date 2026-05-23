@@ -5,6 +5,9 @@ import { analyzeProgressData } from '../services/gemini';
 export default function ProgressTab({ history, goals, apiKey }) {
   const [measurements, setMeasurements] = useState([]);
   const deviceRef = React.useRef(null);
+  const characteristicRef = React.useRef(null);
+  const disconnectHandlerRef = React.useRef(null);
+  const handleScaleDataReceivedRef = React.useRef(null);
   const [hasPairedDevice, setHasPairedDevice] = useState(false);
   const [formData, setFormData] = useState({ weight: '', chest: '', waist: '', hips: '', arms: '' });
   const [scaleData, setScaleData] = useState('');
@@ -29,6 +32,11 @@ export default function ProgressTab({ history, goals, apiKey }) {
   const [isStable, setIsStable] = useState(false);
   const [bodyComp, setBodyComp] = useState(null);
   const [simPacket, setSimPacket] = useState('');
+
+  // Keep callback ref updated to avoid stale closures in Web Bluetooth event listeners
+  useEffect(() => {
+    handleScaleDataReceivedRef.current = handleScaleDataReceived;
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem('nutrilens_measurements');
@@ -353,39 +361,54 @@ export default function ProgressTab({ history, goals, apiKey }) {
     }
   };
 
+  const onCharacteristicValueChanged = React.useCallback((event) => {
+    const value = event.target.value;
+    let hexArray = [];
+    const bytes = [];
+    for (let i = 0; i < value.byteLength; i++) {
+      const byteVal = value.getUint8(i);
+      bytes.push(byteVal);
+      hexArray.push(byteVal.toString(16).padStart(2, '0').toUpperCase());
+    }
+    const hexString = hexArray.join(' ');
+    setScaleData(hexString);
+
+    const parsed = parseYunmaiPacket(bytes);
+    if (parsed && handleScaleDataReceivedRef.current) {
+      handleScaleDataReceivedRef.current(parsed);
+    }
+  }, []);
+
   const setupDeviceNotifications = async (device) => {
     const server = await device.gatt.connect();
     setIsConnected(true);
     
+    // Clean up previous disconnect listener if any
+    if (disconnectHandlerRef.current && deviceRef.current) {
+      try {
+        deviceRef.current.removeEventListener('gattserverdisconnected', disconnectHandlerRef.current);
+      } catch (e) {}
+    }
+
     const onDisconnect = () => {
       setIsConnected(false);
     };
-
-    // Remove any previous listener first
-    device.removeEventListener('gattserverdisconnected', onDisconnect);
+    disconnectHandlerRef.current = onDisconnect;
     device.addEventListener('gattserverdisconnected', onDisconnect);
 
     const service = await server.getPrimaryService('0000ffe0-0000-1000-8000-00805f9b34fb');
     const characteristic = await service.getCharacteristic('0000ffe4-0000-1000-8000-00805f9b34fb');
     
-    await characteristic.startNotifications();
-    characteristic.addEventListener('characteristicvaluechanged', (event) => {
-      const value = event.target.value;
-      let hexArray = [];
-      const bytes = [];
-      for (let i = 0; i < value.byteLength; i++) {
-        const byteVal = value.getUint8(i);
-        bytes.push(byteVal);
-        hexArray.push(byteVal.toString(16).padStart(2, '0').toUpperCase());
-      }
-      const hexString = hexArray.join(' ');
-      setScaleData(hexString);
+    // Clean up previous characteristic listener
+    if (characteristicRef.current) {
+      try {
+        characteristicRef.current.removeEventListener('characteristicvaluechanged', onCharacteristicValueChanged);
+      } catch (e) {}
+    }
+    characteristicRef.current = characteristic;
 
-      const parsed = parseYunmaiPacket(bytes);
-      if (parsed) {
-        handleScaleDataReceived(parsed);
-      }
-    });
+    await characteristic.startNotifications();
+    characteristic.addEventListener('characteristicvaluechanged', onCharacteristicValueChanged);
   };
 
   const handleConnectScale = async () => {
