@@ -1,5 +1,5 @@
 import React from 'react';
-import { Trash2, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { Trash2, ChevronLeft, ChevronRight, Calendar, Star } from 'lucide-react';
 
 const CircularProgress = ({ value, max, color, label, unit }) => {
   const radius = 30; // Уменьшено с 36 для маленьких экранов

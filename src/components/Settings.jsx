@@ -1,11 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Unlock, KeyRound, Target } from 'lucide-react';
+import { Lock, Unlock, KeyRound, Target, User } from 'lucide-react';
 
 export default function Settings({ apiKey, setApiKey, setView, goals, setGoals }) {
   const [tempKey, setTempKey] = useState(apiKey || '');
   
   // Goals State
   const [localGoals, setLocalGoals] = useState({ ...goals });
+
+  // Physical Profile State
+  const [profile, setProfile] = useState({
+    height: 175,
+    age: 25,
+    gender: 1, // 1 = male, 0 = female
+    isAthlete: false,
+    biaAlgorithm: 'standard',
+    fatOffset: 0
+  });
 
   // Security State
   const [hasPin, setHasPin] = useState(false);
@@ -20,7 +30,30 @@ export default function Settings({ apiKey, setApiKey, setView, goals, setGoals }
       setHasPin(true);
       setIsUnlocked(false);
     }
+
+    const savedProfile = localStorage.getItem('nutrilens_profile');
+    if (savedProfile) {
+      try {
+        const parsed = JSON.parse(savedProfile);
+        setProfile({
+          height: 175,
+          age: 25,
+          gender: 1,
+          isAthlete: false,
+          biaAlgorithm: 'standard',
+          fatOffset: 0,
+          ...parsed
+        });
+      } catch (e) {
+        console.error(e);
+      }
+    }
   }, []);
+
+  const handleSaveProfile = () => {
+    localStorage.setItem('nutrilens_profile', JSON.stringify(profile));
+    alert("Профиль сохранен!");
+  };
 
   const handleSaveGoals = () => {
     // Convert strings to numbers
@@ -115,6 +148,84 @@ export default function Settings({ apiKey, setApiKey, setView, goals, setGoals }
         </button>
       </div>
 
+      {/* SECTION 1.5: PHYSICAL PROFILE */}
+      <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <User color="var(--primary)" />
+          <h2 style={{ fontSize: '1.2rem', margin: 0 }}>Физический профиль</h2>
+        </div>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+          Укажите параметры тела для расчета состава тела с умных весов.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Рост (см)</label>
+            <input 
+              type="number" value={profile.height}
+              onChange={(e) => setProfile({...profile, height: Number(e.target.value) || 0})}
+              style={inputStyle} 
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Возраст (лет)</label>
+            <input 
+              type="number" value={profile.age}
+              onChange={(e) => setProfile({...profile, age: Number(e.target.value) || 0})}
+              style={inputStyle} 
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Пол</label>
+            <select 
+              value={profile.gender}
+              onChange={(e) => setProfile({...profile, gender: Number(e.target.value)})}
+              style={inputStyle}
+            >
+              <option value={1}>Мужской</option>
+              <option value={0}>Женский</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Режим спортсмена</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', height: '45px' }}>
+              <input 
+                type="checkbox" 
+                checked={profile.isAthlete}
+                onChange={(e) => setProfile({...profile, isAthlete: e.target.checked})}
+                style={{ width: '20px', height: '20px', accentColor: 'var(--primary)', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '0.9rem' }}>Активен</span>
+            </div>
+          </div>
+          <div>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Алгоритм BIA</label>
+            <select 
+              value={profile.biaAlgorithm || 'standard'}
+              onChange={(e) => setProfile({...profile, biaAlgorithm: e.target.value})}
+              style={inputStyle}
+            >
+              <option value="standard">Standard BIA (Sun et al.)</option>
+              <option value="yunmai">Yunmai Fallback</option>
+              <option value="xiaomi">Xiaomi Fallback</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Калибровка жира (%)</label>
+            <input 
+              type="number" 
+              step="0.1"
+              value={profile.fatOffset || 0}
+              onChange={(e) => setProfile({...profile, fatOffset: Number(e.target.value) || 0})}
+              style={inputStyle} 
+            />
+          </div>
+        </div>
+        <button className="btn btn-glass" onClick={handleSaveProfile}>
+          Сохранить профиль
+        </button>
+      </div>
+
       {/* SECTION 2: API KEY (Protected) */}
       <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -136,6 +247,22 @@ export default function Settings({ apiKey, setApiKey, setView, goals, setGoals }
             />
             {pinError && <div style={{ color: 'var(--accent)', fontSize: '0.8rem' }}>{pinError}</div>}
             <button className="btn btn-primary" onClick={handleUnlock}>Разблокировать</button>
+            <button 
+              className="btn btn-glass" 
+              style={{ marginTop: '8px', borderColor: 'rgba(244, 63, 94, 0.4)', color: 'var(--accent)' }} 
+              onClick={() => {
+                if (window.confirm("Вы уверены, что хотите сбросить ПИН-код? Все настройки будут сохранены, но защита отключится.")) {
+                  localStorage.removeItem('nutrilens_pin');
+                  setHasPin(false);
+                  setIsUnlocked(true);
+                  setPinInput('');
+                  setPinError('');
+                  alert("ПИН-код сброшен!");
+                }
+              }}
+            >
+              Сбросить ПИН-код
+            </button>
           </div>
         ) : (
           // UNLOCKED STATE

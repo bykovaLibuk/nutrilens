@@ -59,8 +59,14 @@ function App() {
 
   const handleFoodAnalyzed = (result) => {
     // SECURITY: Validate that the returned data has the required numbers and is >= 0
-    // Use targetDate if provided (for adding to past days), otherwise use now
-    const targetDate = result.targetDate || new Date().toISOString();
+    // If targetDate is not provided, use the date from currentDate (at the current time) to log it on the viewed day
+    let targetDate = result.targetDate;
+    if (!targetDate) {
+      const now = new Date();
+      const viewDate = new Date(currentDate);
+      viewDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+      targetDate = viewDate.toISOString();
+    }
 
     const sanitizedResult = {
       name: String(result.name || 'Неизвестное блюдо').substring(0, 50),
@@ -193,6 +199,7 @@ function App() {
             onAddFromFav={handleFoodAnalyzed} 
             onDeleteFav={handleDeleteFavorite} 
             setView={setView} 
+            currentDate={currentDate}
           />
         )}
 

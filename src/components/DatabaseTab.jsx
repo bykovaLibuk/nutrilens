@@ -1,15 +1,24 @@
 import React, { useState } from 'react';
 import { Search, Plus, ChefHat, Pencil, Trash2 } from 'lucide-react';
 
-export default function DatabaseTab({ favorites, onSaveToFav, onAddFromFav, onDeleteFav, setView }) {
+export default function DatabaseTab({ favorites, onSaveToFav, onAddFromFav, onDeleteFav, setView, currentDate }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showManual, setShowManual] = useState(false);
   const [manualData, setManualData] = useState({ name: '', calories: '', protein: '', fat: '', carbs: '' });
   
+  // Get local date string in YYYY-MM-DD format
+  const getLocalDateString = (date) => {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   // Portion prompt state
   const [activeItem, setActiveItem] = useState(null);
   const [portion, setPortion] = useState(100);
-  const [targetDate, setTargetDate] = useState(new Date().toISOString().split('T')[0]);
+  const [targetDate, setTargetDate] = useState(getLocalDateString(currentDate || new Date()));
 
   const filteredFavorites = favorites.filter(fav => 
     fav.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -41,7 +50,7 @@ export default function DatabaseTab({ favorites, onSaveToFav, onAddFromFav, onDe
         protein: Math.round(activeItem.protein * multiplier),
         fat: Math.round(activeItem.fat * multiplier),
         carbs: Math.round(activeItem.carbs * multiplier),
-        targetDate: new Date(targetDate).toISOString()
+        targetDate: new Date(targetDate + 'T12:00:00').toISOString()
       });
       setActiveItem(null);
       setPortion(100);
