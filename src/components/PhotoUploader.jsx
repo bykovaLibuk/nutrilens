@@ -13,6 +13,9 @@ export default function PhotoUploader({ apiKey, onFoodAnalyzed }) {
   const [editData, setEditData] = useState(null);
   const [portion, setPortion] = useState(1); // 1 = 100%, 0.5 = 50%
   
+  // Custom comments/hints for Gemini
+  const [userHint, setUserHint] = useState('');
+  const [readyToAnalyze, setReadyToAnalyze] = useState(false);
   
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
@@ -26,11 +29,6 @@ export default function PhotoUploader({ apiKey, onFoodAnalyzed }) {
       return;
     }
 
-    if (!navigator.onLine) {
-      setError("Нет интернета. Анализ невозможен.");
-      return;
-    }
-
     setLoading(true);
     setError(null);
     setEditMode(false);
@@ -39,15 +37,37 @@ export default function PhotoUploader({ apiKey, onFoodAnalyzed }) {
       // Compress image first
       const base64 = await compressImage(file, 800);
       setPreview(base64);
-      
-      const result = await analyzeFood(apiKey, base64, "image/jpeg");
-      
-      // Instead of saving immediately, open edit mode
+      setReadyToAnalyze(true);
+    } catch (err) {
+      setError("Ошибка загрузки фото: " + err.message);
+      setPreview(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAnalyze = async () => {
+    if (!preview) return;
+    if (!apiKey) {
+      setError("Пожалуйста, сначала укажите API ключ в настройках");
+      return;
+    }
+    if (!navigator.onLine) {
+      setError("Нет интернета. Анализ невозможен.");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    setReadyToAnalyze(false);
+    
+    try {
+      const result = await analyzeFood(apiKey, preview, "image/jpeg", userHint);
       setEditData(result);
       setEditMode(true);
-      
     } catch (err) {
       setError("Ошибка при анализе фото: " + err.message);
+      setPreview(null);
     } finally {
       setLoading(false);
     }
@@ -66,13 +86,50 @@ export default function PhotoUploader({ apiKey, onFoodAnalyzed }) {
     setPreview(null);
     setEditData(null);
     setPortion(1);
+    setUserHint('');
   };
 
   const handleCancelEdit = () => {
     setEditMode(false);
     setPreview(null);
     setEditData(null);
+    setUserHint('');
   };
+
+  if (preview && readyToAnalyze) {
+    return (
+      <div className="glass-panel animate-slide-up" style={{ margin: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <h2 style={{ fontSize: '1.1rem', margin: 0, textAlign: 'center' }}>Добавить описание</h2>
+        
+        <div style={{ position: 'relative', width: '100%', height: '200px', borderRadius: '8px', overflow: 'hidden' }}>
+          <img src={preview} alt="Food preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+
+        <div>
+          <label style={labelStyle}>Что на фото? (Необязательно, поможет ИИ определить точнее)</label>
+          <textarea
+            value={userHint}
+            onChange={(e) => setUserHint(e.target.value)}
+            placeholder="Например: суп гороховый 300г, оладьи на кефире 300г + 30г сметаны 20% + 40г вишневого джема"
+            style={{ ...inputStyle, height: '80px', resize: 'none' }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button className="btn btn-glass" style={{ flex: 1 }} onClick={() => {
+            setPreview(null);
+            setReadyToAnalyze(false);
+            setUserHint('');
+          }}>
+            Отмена
+          </button>
+          <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleAnalyze}>
+            Анализировать с ИИ
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (preview && loading) {
     return (

@@ -27,12 +27,23 @@ async function getAvailableModels(apiKey) {
   return [];
 }
 
-export async function analyzeFood(apiKey, base64Image, mimeType = "image/jpeg") {
+export async function analyzeFood(apiKey, base64Image, mimeType = "image/jpeg", userHint = "") {
   const genAI = new GoogleGenerativeAI(apiKey);
-  const prompt = `
+  let prompt = `
   You are an expert nutritionist. Analyze this photo of food.
   Identify the main foods shown and estimate their nutritional values for the ENTIRE visible portion.
-  
+  `;
+
+  if (userHint && userHint.trim()) {
+    prompt += `
+    CRITICAL CONTEXT FROM THE USER:
+    The user described this food/portion as: "${userHint}". 
+    Use this description to guide your analysis, identify the exact ingredients, and scale the portion sizes/weights accordingly.
+    Even if the food is hard to see or identify from the photo alone, rely heavily on this text context to estimate the calories and macros accurately.
+    `;
+  }
+
+  prompt += `
   Return ONLY a valid JSON object with the following structure (no markdown, no backticks, no other text):
   {
     "name": "Short descriptive name of the meal",
